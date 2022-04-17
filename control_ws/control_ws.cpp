@@ -4,6 +4,7 @@
 #include "pch.h"
 #include "framework.h"
 #include "control_ws.h"
+#include "ServerSocket.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -34,8 +35,33 @@ int main()
         else
         {
             // TODO: 在此处为应用程序的行为编写代码。
+            // 实现单例
+            CServerSocket* pserver = CServerSocket::getInstance();
+            int count = 0;
+            if (pserver->InitSocket() == false)
+            {
+                    MessageBox(NULL, _T("网络初始化异常!"), _T("网络初始化失败!"), MB_OK | MB_ICONERROR);
+                    exit(0);
+            }
+            while (CServerSocket::getInstance() != NULL)
+            {
+                if (pserver->AcceptClient() == false)
+                {
+                    if (count >= 3)
+                    {
+                        MessageBox(NULL, _T("接入用户失败,结束程序!"), _T("接入用户失败!"), MB_OK | MB_ICONERROR);
+                        exit(0);
+                    }
+                    MessageBox(NULL, _T("接入用户失败,正在重试!"), _T("接入用户失败!"), MB_OK | MB_ICONERROR);
+                    count++;
+                }
+                int ret = pserver->DealCommand();
+                //TODO:
+            }
 
         }
+                
+        
     }
     else
     {
