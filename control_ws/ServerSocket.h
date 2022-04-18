@@ -1,6 +1,77 @@
 #pragma once
 #include "pch.h"
 #include "framework.h"
+
+class CPacket // 包类
+{
+public:
+	CPacket() : sHead(0), nLength(0), sCmd(0), sSum(0) {}
+	CPacket(const CPacket& pack) {
+		sHead = pack.sHead;
+		nLength = pack.nLength;
+		sCmd = pack.sCmd;
+		strData = pack.strData;
+		sSum = pack.sSum;
+	}
+	CPacket(const BYTE* pData, size_t& nSize) //解析数据用 nsize:发过来的字节 pdata:
+	{
+		size_t i = 0;
+		for (; i < nSize; i++)
+		{
+			if (*(WORD*)(pData + i) == 0xFEFF) // 找到包头
+			{
+				sHead = *(WORD*)(pData + i);
+				i += 2; //防止特殊情况 
+				break;
+			}
+		}
+		if (i + 4 + 2 + 2 >= nSize) // 判断解析是否成功 baotou4 length commed sum 422  包数据可能不全,或者包头未能全部接收
+		{	//i用来标记现在到哪里了 读包头+2 读长度+4 读commond+2 读data+nlength-4 读sum+2  
+			//为什么用i 前面有可能有废数据 需要把后面的包移到buffer前面(buffer前面是不要的数据)
+			nSize = 0;
+			return;
+		}
+		nLength = *(WORD*)(pData + i); i += 4;
+		if (nLength + i > nSize) { //包未完全收到,解析失败 ,返回
+			nSize = 0;
+			return;
+		}
+		sCmd = *(WORD*)(pData + i); i += 2;
+		if (nLength > 4) {
+			strData.resize(nLength - 2 - 2); // 减去sum和cmd -2-2
+			memcpy((void*)strData.c_str(), pData + i, nLength - 4);
+			i += nLength - 4;
+		}
+		sSum = *(WORD*)(pData + i); i += 2; //i就是size
+		WORD sum = 0;
+		for (size_t j = 0; j < strData.size(); j++) {
+			sum += BYTE(strData[i] & 0xFF);
+		}
+		if (sum == sSum) {
+			nSize = i; // head length data 2 4 
+			return;
+		}
+		nSize = 0;
+	}
+	~CPacket() {}
+	CPacket& operator=(const CPacket& pack) {
+		if (this != &pack) {
+			sHead = pack.sHead;
+			nLength = pack.nLength;
+			sCmd = pack.sCmd;
+			strData = pack.strData;
+			sSum = pack.sSum;
+		}
+		return *this;
+	}
+
+	WORD sHead;// head packet
+	DWORD nLength; //包长度
+	WORD sCmd; //控制命令
+	std::string strData; //包数据
+	WORD sSum; //和校验
+};
+
 class CServerSocket
 {
 public:
@@ -27,7 +98,7 @@ public:
 		if (bind(m_sock, (sockaddr*)&serv_addr, sizeof(serv_addr)) == -1) return false;
 		if (listen(m_sock, 10) == -1) return false;
 		return true;
-		
+
 	}
 	bool AcceptClient()
 	{
@@ -39,23 +110,37 @@ public:
 		return true;
 		//recv(client, buffer, sizeof(buffer), 0);
 		//send(client, buffer, sizeof(buffer), 0);
-		
+
 	}
-	int DealCommand()
+#define BUFFER_SIZE 4096
+	int DealCommand() // 解析命令 from client 
 	{
-		if (m_client == -1) return false;
-		char buffer[1024] = "";
+		if (m_client == -1) return -1;
+		//char buffer[1024] = "";
+		//缓冲区封装包
+		char* buffer = new char[BUFFER_SIZE];
+		memset(buffer, 0, BUFFER_SIZE);
+		size_t index = 0;
 		while (true)
-		{
-			int len = recv(m_client, buffer, sizeof(buffer), 0);
+		{//
+			size_t len = recv(m_client, buffer + index, BUFFER_SIZE - index, 0);
 			if (len <= 0)
 			{
 				return -1;
 			}
+			index += len;
+			len = index;
 			//TODO:处理命令
+			m_packet = CPacket((BYTE*)buffer, len);
+			if (len > 0) {
+				memmove(buffer, buffer + len, BUFFER_SIZE - len);
+				index -= len;
+				return m_packet.sCmd;
+			}
 		}
+		return -1;
 	}
-	bool Send(char* const pData,int nSize)
+	bool Send(char* const pData, int nSize)
 	{
 		if (m_client == -1) return false;
 		return send(m_client, pData, nSize, 0) > 0;
@@ -63,9 +148,10 @@ public:
 
 
 private:
-	SOCKET m_sock,m_client;
+	SOCKET m_sock, m_client;
+	CPacket m_packet;
 	CServerSocket& operator=(const CServerSocket& ss) {} //ss = server_scoket 重载
-	CServerSocket(const CServerSocket& ss) 
+	CServerSocket(const CServerSocket& ss)
 	{
 		m_sock = ss.m_sock;
 		m_client = ss.m_client;
@@ -117,7 +203,7 @@ private:
 		{
 			CServerSocket::releaseInstance();
 		}
-	
+
 	private:
 
 	};
