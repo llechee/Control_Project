@@ -108,6 +108,50 @@ int MakeDirectoryInfo()//需要传:命令指定路径信息
     return 0;
 }
 
+//打开文件
+int RunFile()
+{
+    std::string strPath;
+    CServerSocket::getInstance()->GetFilePath(strPath);
+    ShellExecuteA(NULL, NULL, strPath.c_str(), NULL, NULL, SW_SHOWNORMAL);//打开文件  shell
+    CPacket pack(3, NULL, 0);
+    CServerSocket::getInstance()->Send(pack);
+    return 0;
+}
+
+//#pragma warning(disable:4996)
+//client下载文件
+int DownloadFile()
+{
+    std::string strPath;
+    CServerSocket::getInstance()->GetFilePath(strPath); // 拿取路径
+    long long data = 0;
+    FILE* pFile;
+    errno_t err = fopen_s(&pFile,strPath.c_str(), "rb");
+    if (err != 0) { //如果打开失败
+        CPacket pack(4, (BYTE*)&data, 0);//应答一个空数据 对方读到0个字节
+        CServerSocket::getInstance()->Send(pack); //告诉你已经结束了
+        return -1;
+    }
+    if (pFile != NULL) {
+        fseek(pFile, 0, SEEK_END);
+        data = _ftelli64(pFile);
+        CPacket head(4, (BYTE*)&data, 8);//通过8个字节 拿到文件长度发过去
+        fseek(pFile, 0, SEEK_SET);
+        char buffer[1024] = ""; // 缓冲区不要大于1k
+        size_t rlen = 0;//read len
+        do {
+            rlen = fread(buffer, 1, 1024, pFile);
+            CPacket pack(4, (BYTE*)buffer, rlen);
+            CServerSocket::getInstance()->Send(pack); //读1k 发1k 每个包都能发过去
+        } while (rlen >= 1024); //读到文件尾了 x
+        fclose(pFile);
+    }
+    CPacket pack(4, NULL, 0);// 对方收到空的就知道是结尾了
+    CServerSocket::getInstance()->Send(pack);
+    return 0;
+}
+
 int main()
 {
     int nRetCode = 0;
@@ -156,6 +200,12 @@ int main()
                 break;
             case 2: // 查看指定目录下文件
                 MakeDirectoryInfo();
+                break;
+            case 3: // 打开文件
+                RunFile();
+                break; 
+            case 4: //下载文件
+                DownloadFile();
                 break;
             }
 
