@@ -2,17 +2,35 @@
 #include "pch.h"
 #include "framework.h"
 
+#pragma pack(push)
+#pragma pack(1)
 class CPacket // 包类
 {
 public:
-	CPacket() : sHead(0), nLength(0), sCmd(0), sSum(0) {}
-	CPacket(const CPacket& pack) {
+	CPacket() : sHead(0), nLength(0), sCmd(0), sSum(0) {} //构造 初始化
+
+	//参数一：命令 参数二：数据指针 参数三：数据大小
+	CPacket(WORD nCmd, const BYTE* pData, size_t nSize) { //打包 初始化
+		sHead = 0xFEFF;
+		nLength = nSize + 4;
+		sCmd = nCmd;
+		strData.resize(nSize);
+		memcpy((void*)strData.c_str(), pData, nSize);
+		sSum = 0;
+		for (size_t j = 0; j < strData.size(); j++) {
+			sSum += BYTE(strData[j]) & 0xFF;
+		}
+	}
+	CPacket(const CPacket& pack) { //解包 初始化
 		sHead = pack.sHead;
 		nLength = pack.nLength;
 		sCmd = pack.sCmd;
 		strData = pack.strData;
 		sSum = pack.sSum;
 	}
+
+	//数据包解析，将包中的数据分配到成员变量中
+	//参数一：数据指针  参数二：数据大小
 	CPacket(const BYTE* pData, size_t& nSize) //解析数据用 nsize:发过来的字节 pdata:
 	{
 		size_t i = 0;
@@ -20,7 +38,7 @@ public:
 		{
 			if (*(WORD*)(pData + i) == 0xFEFF) // 找到包头
 			{
-				sHead = *(WORD*)(pData + i);
+				sHead = *(WORD*)(pData + i);//提取包头
 				i += 2; //防止特殊情况 
 				break;
 			}
@@ -31,24 +49,24 @@ public:
 			nSize = 0;
 			return;
 		}
-		nLength = *(WORD*)(pData + i); i += 4;
+		nLength = *(WORD*)(pData + i); i += 4;//读取长度
 		if (nLength + i > nSize) { //包未完全收到,解析失败 ,返回
 			nSize = 0;
 			return;
 		}
-		sCmd = *(WORD*)(pData + i); i += 2;
-		if (nLength > 4) {
+		sCmd = *(WORD*)(pData + i); i += 2;//读取命令行
+		if (nLength > 4) {				   //数据的长度大于四
 			strData.resize(nLength - 2 - 2); // 减去sum和cmd -2-2
-			memcpy((void*)strData.c_str(), pData + i, nLength - 4);
+			memcpy((void*)strData.c_str(), pData + i, nLength - 4);//读取数据
 			i += nLength - 4;
 		}
-		sSum = *(WORD*)(pData + i); i += 2; //i就是size
+		sSum = *(WORD*)(pData + i); i += 2; //i就是size  //接收校验码
 		WORD sum = 0;
 		for (size_t j = 0; j < strData.size(); j++) {
-			sum += BYTE(strData[i] & 0xFF);
+			sum += BYTE(strData[j] & 0xFF);
 		}
 		if (sum == sSum) {
-			nSize = i; // head length data 2 4 
+			nSize = i; // head length data 2 4  //头+长度+数据
 			return;
 		}
 		nSize = 0;
@@ -64,13 +82,29 @@ public:
 		}
 		return *this;
 	}
+	int Size() { //获得包数据的大小
+		return nLength + 6;//头是2个字节 加自己四字节
+	}
+	const char* Data() {//用于解析包，将包数据送入缓冲区
+		strOut.resize(nLength + 6);
+		BYTE* pData = (BYTE*)strOut.c_str(); //指针指向包头
+		*(WORD*)pData = sHead; pData += 2;
+		*(DWORD*)(pData) = nLength; pData += 4;
+		*(WORD*)pData = sCmd; pData += 2;
+		memcpy(pData, strData.c_str(), strData.size()); pData += strData.size();
+		*(WORD*)pData = sSum;
+		return strOut.c_str(); //返回整个包
+	}
 
+public:
 	WORD sHead;// head packet
-	DWORD nLength; //包长度
-	WORD sCmd; //控制命令
+	DWORD nLength; //包长度 (从控制命令开始到和校验结束）  4字节
+	WORD sCmd; //控制命令 2字节
 	std::string strData; //包数据
 	WORD sSum; //和校验
+	std::string strOut;//整个包的数据
 };
+#pragma pack(pop)
 
 class CServerSocket
 {
@@ -96,7 +130,7 @@ public:
 		serv_addr.sin_addr.s_addr = INADDR_ANY;
 		serv_addr.sin_port = htons(8848);//default port: 8848
 		if (bind(m_sock, (sockaddr*)&serv_addr, sizeof(serv_addr)) == -1) return false;
-		if (listen(m_sock, 10) == -1) return false;
+		if (listen(m_sock, 1) == -1) return false;
 		return true;
 
 	}
@@ -145,7 +179,17 @@ public:
 		if (m_client == -1) return false;
 		return send(m_client, pData, nSize, 0) > 0;
 	}
-
+	bool Send(CPacket& pack) {
+		if (m_client == -1) return false;
+		return send(m_client, pack.Data(), pack.Size(), 0) > 0;
+	}
+	bool GetFilePath(std::string& strPath) {//获取文件路径(列表)
+		if (m_packet.sCmd == 2) { //scmd是俩个字节
+			strPath = m_packet.strData;
+			return true;
+		}
+		return false;
+	}
 
 private:
 	SOCKET m_sock, m_client;
