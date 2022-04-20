@@ -6,6 +6,7 @@
 #include "control_ws.h"
 #include "ServerSocket.h"
 #include <direct.h>
+#include <atlimage.h>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -245,6 +246,46 @@ int MouseEvent()
     }
     return 0;
 }
+
+// 发送屏幕
+int SendScreen()
+{
+    CImage screen;//GDI 全局设备接口
+    HDC hScreen = ::GetDC(NULL);//获取设备上下文 屏幕句柄
+    // 一个点上有多少个比特 下VVVV
+    int nBitPerPixel = GetDeviceCaps(hScreen, BITSPIXEL); //和RGB 像素点相关 一般是32和28
+    int nWidth = GetDeviceCaps(hScreen, HORZRES);//拿到宽度
+    int nHeight = GetDeviceCaps(hScreen, VERTRES);//拿到长度
+    screen.Create(nWidth, nHeight, nBitPerPixel);//按照显示器创建好图像
+    BitBlt(screen.GetDC(), 0, 0, 1920, 1020, hScreen, 0, 0, SRCCOPY);//将图像复制到screen里
+    ReleaseDC(NULL, hScreen);//清空
+    HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, 0);//分配到一个可变化内存里去
+    if (hMem == NULL) return -1;
+    IStream* pStream = NULL;
+    HRESULT ret = CreateStreamOnHGlobal(hMem, TRUE, &pStream);//让系统去管理流 TODO:
+    if (ret == S_OK) {
+        screen.Save(pStream, Gdiplus::ImageFormatPNG);//压缩 保存到流里面去
+        LARGE_INTEGER bg = { 0 };
+        pStream->Seek(bg, STREAM_SEEK_SET, NULL);
+        PBYTE pData = (PBYTE)GlobalLock(hMem);
+        SIZE_T nSize = GlobalSize(hMem);
+        CPacket pack(6, pData, nSize);
+        CServerSocket::getInstance()->Send(pack);
+        GlobalUnlock(hMem);
+    }
+    
+    //DWORD tick = GetTickCount64();//得到时间 来观察生成照片需要耗费的资源
+    //screen.Save(_T("Test.png"), Gdiplus::ImageFormatPNG);//压缩
+    //TRACE("png %d\r\n", GetTickCount64() - tick);
+    //tick = GetTickCount64();
+    //screen.Save(_T("Test.jpg"), Gdiplus::ImageFormatJPEG);
+    //TRACE("jpg %d\r\n", GetTickCount64() - tick);
+    pStream->Release();
+    GlobalFree(hMem);
+    screen.ReleaseDC();//释放
+    return 0;
+}
+
 int main()
 {
     int nRetCode = 0;
@@ -286,7 +327,7 @@ int main()
             //    int ret = pserver->DealCommand();
             //    //TODO:
             //}
-            int nCmd = 1;
+            int nCmd = 6;
             switch (nCmd) {
             case 1: // 查看磁盘分区
                 MakeDriverInfo();//拿到磁盘分区信息
@@ -302,6 +343,9 @@ int main()
                 break;
             case 5: //鼠标事件
                 MouseEvent();
+                break;
+            case 6://发送屏幕内容==发送屏幕截图
+                SendScreen();
                 break;
             }
 
