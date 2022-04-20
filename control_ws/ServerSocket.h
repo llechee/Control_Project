@@ -111,6 +111,18 @@ public:
 };
 #pragma pack(pop)
 
+typedef struct MouseEvent{ //鼠标事件结构体
+	MouseEvent() { //初始 构造函数
+		nAction = 0;
+		nButtom = -1;
+		ptXY.x = 0;
+		ptXY.y = 0;
+	}
+	WORD nAction;//描述动作  点击 移动 双击
+	WORD nButtom;//左键 右键 中键 0 2 1
+	POINT ptXY;//坐标
+}MOUSEEVENT,*PMOUSEEVENT;
+
 class CServerSocket
 {
 public:
@@ -191,6 +203,13 @@ public:
 	bool GetFilePath(std::string& strPath) {//获取文件路径(列表)
 		if ((m_packet.sCmd >= 2) && (m_packet.sCmd <= 4)) { //scmd是俩个字节
 			strPath = m_packet.strData;
+			return true;
+		}
+		return false;
+	}
+	bool GetMouseEvent(MOUSEEVENT& mouse) {
+		if (m_packet.sCmd == 5) {
+			memcpy(&mouse, m_packet.strData.c_str(), sizeof(MOUSEEVENT));
 			return true;
 		}
 		return false;
