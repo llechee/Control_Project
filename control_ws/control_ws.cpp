@@ -240,7 +240,7 @@ int MouseEvent()
         CServerSocket::getInstance()->Send(pack); // 返回一个包(空的) 告诉tcp我收到并已经执行完成这个事情了
     }
     else {
-        OutputDebugString(_T("获取鼠标参数失败!!!\n"));
+        OutputDebugString(_T("获取鼠标参数失败!!!\n")); 
         return -1;
     }
     return 0;
