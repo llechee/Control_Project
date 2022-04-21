@@ -215,6 +215,14 @@ public:
 		}
 		return false;
 	}
+	CPacket& GetPacket() {//ÄÃµ½cmd
+		return m_packet;
+	}
+	void CloseClient()
+	{
+		closesocket(m_client);
+		m_client = INVALID_SOCKET;
+	}
 
 private:
 	SOCKET m_sock, m_client;

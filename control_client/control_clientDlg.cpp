@@ -7,6 +7,7 @@
 #include "control_client.h"
 #include "control_clientDlg.h"
 #include "afxdialogex.h"
+#include "ClientSocket.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -65,6 +66,8 @@ BEGIN_MESSAGE_MAP(CcontrolclientDlg, CDialogEx)
 	ON_WM_SYSCOMMAND()
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
+	//ON_BN_CLICKED(IDC_BUTTON1, &CcontrolclientDlg::OnBnClickedButton1)
+	ON_BN_CLICKED(IDC_BTN_TEST, &CcontrolclientDlg::OnBnClickedBtnTest)
 END_MESSAGE_MAP()
 
 
@@ -153,3 +156,13 @@ HCURSOR CcontrolclientDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
+
+void CcontrolclientDlg::OnBnClickedBtnTest()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	CClientSocket* pClient = CClientSocket::getInstance();
+	bool ret = pClient->InitSocket("127.0.0.1");//TODO:返回值需要处理
+	if (!ret) {
+		AfxMessageBox("网络初始化错误!");
+	}
+}

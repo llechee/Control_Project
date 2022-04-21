@@ -124,20 +124,8 @@ typedef struct MouseEvent { //鼠标事件结构体
 	POINT ptXY;//坐标
 }MOUSEEVENT, * PMOUSEEVENT;
 
-std::string GetErrorInfo(int wsaErrCode)//网络错误码 //TODO:学习
-{
-	std::string ret;
-	LPVOID lpMsgBuf = NULL;
-	FormatMessage(
-		FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ALLOCATE_BUFFER,
-		NULL,
-		wsaErrCode,
-		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-		(LPTSTR)&lpMsgBuf, 0, NULL);
-	ret = (char*)lpMsgBuf;
-	LocalFree(lpMsgBuf);
-	return ret;
-}
+std::string GetErrorinfo(int wsaErrCode);//网络错误码 //TODO:学习
+
 
 class CClientSocket
 {
@@ -170,7 +158,7 @@ public:
 		int ret = connect(m_sock, (sockaddr*)&serv_addr, sizeof(serv_addr));
 		if (ret == -1) {
 			AfxMessageBox("连接失败!");
-			TRACE("连接失败 : %d %s\r\n", WSAGetLastError(), GetErrorInfo(WSAGetLastError()).c_str());
+			TRACE("连接失败 : %d %s\r\n", WSAGetLastError(), GetErrorinfo(WSAGetLastError()).c_str());
 			return false;
 		}
 		return true;

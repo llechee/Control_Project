@@ -352,6 +352,38 @@ int UnLockMachine()
     return 0;
 }
 
+int ExcuteCommand(int nCmd)
+{
+    int ret = 0;
+    switch (nCmd) {
+    case 1: // 查看磁盘分区
+        ret = MakeDriverInfo();//拿到磁盘分区信息
+        break;
+    case 2: // 查看指定目录下文件
+        ret = MakeDirectoryInfo();
+        break;
+    case 3: // 打开文件
+        ret = RunFile();
+        break;
+    case 4: //下载文件
+        ret = DownloadFile();
+        break;
+    case 5: //鼠标事件
+        ret = MouseEvent();
+        break;
+    case 6://发送屏幕内容==发送屏幕截图
+        ret = SendScreen();
+        break;
+    case 7://锁机  禁止用户操作鼠标键盘菜单等
+        ret = LockMachine();
+        break;
+    case 8://解锁
+        ret = UnLockMachine();
+        break;
+    }
+    return ret;
+}
+
 int main()
 {
     int nRetCode = 0;
@@ -371,64 +403,37 @@ int main()
         {
             // TODO: 在此处为应用程序的行为编写代码。
             // 实现单例
-            //CServerSocket* pserver = CServerSocket::getInstance();
-            //int count = 0;
-            //if (pserver->InitSocket() == false)
-            //{
-            //        MessageBox(NULL, _T("网络初始化异常!"), _T("网络初始化失败!"), MB_OK | MB_ICONERROR);
-            //        exit(0);
-            //}
-            //while (CServerSocket::getInstance() != NULL)
-            //{
-            //    if (pserver->AcceptClient() == false)
-            //    {
-            //        if (count >= 3)
-            //        {
-            //            MessageBox(NULL, _T("接入用户失败,结束程序!"), _T("接入用户失败!"), MB_OK | MB_ICONERROR);
-            //            exit(0);
-            //        }
-            //        MessageBox(NULL, _T("接入用户失败,正在重试!"), _T("接入用户失败!"), MB_OK | MB_ICONERROR);
-            //        count++;
-            //    }
-            //    int ret = pserver->DealCommand();
-            //    //TODO:
-            //}
+            CServerSocket* pserver = CServerSocket::getInstance();
+            int count = 0;
+            if (pserver->InitSocket() == false)
+            {
+                    MessageBox(NULL, _T("网络初始化异常!"), _T("网络初始化失败!"), MB_OK | MB_ICONERROR);
+                    exit(0);
+            }
+            while (CServerSocket::getInstance() != NULL)
+            {
+                if (pserver->AcceptClient() == false)
+                {
+                    if (count >= 3)
+                    {
+                        MessageBox(NULL, _T("多次接入用户失败,程序结束!"), _T("接入用户失败!"), MB_OK | MB_ICONERROR);
+                        exit(0);
+                    }
+                    MessageBox(NULL, _T("接入用户失败,正在重试!"), _T("接入用户失败!"), MB_OK | MB_ICONERROR);
+                    count++;
+                }
+                int ret = pserver->DealCommand();//获取命令
+                //TODO:
+                if (ret == 0) {//如果命令接收ok的话
+                    ret = ExcuteCommand(pserver->GetPacket().sCmd);
+                    if (ret != 0) {
+                        TRACE("执行命令失败 : %d ret = %d\r\n", pserver->GetPacket().sCmd, ret);//看看到底是谁的命令执行失败
+                    }//需要定义短连接
+                    pserver->CloseClient();
+                }
+            }
 
-            int nCmd = 7;
-            switch (nCmd) {
-            case 1: // 查看磁盘分区
-                MakeDriverInfo();//拿到磁盘分区信息
-                break;
-            case 2: // 查看指定目录下文件
-                MakeDirectoryInfo();
-                break;
-            case 3: // 打开文件
-                RunFile();
-                break; 
-            case 4: //下载文件
-                DownloadFile();
-                break;
-            case 5: //鼠标事件
-                MouseEvent();
-                break;
-            case 6://发送屏幕内容==发送屏幕截图
-                SendScreen();
-                break;
-            case 7://锁机  禁止用户操作鼠标键盘菜单等
-                LockMachine();
-                break;
-            case 8://解锁
-                UnLockMachine();
-                break;
-            }
-            /*
-            Sleep(5000);
-            UnlockMachine();
-            TRACE("m_hWnd = %08X\r\n",dlg.m_hWnd);
-            while (dlg.m_hWnd != NULL) {
-                Sleep(10);
-            }
-            */
+            
         }
                 
         
