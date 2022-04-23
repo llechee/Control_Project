@@ -126,6 +126,19 @@ typedef struct MouseEvent { //鼠标事件结构体
 	POINT ptXY;//坐标
 }MOUSEEVENT, * PMOUSEEVENT;
 
+typedef struct file_info {
+	BOOL IsInvalid; //是否是有效目录
+	char szFileName[256];//文件名字
+	BOOL IsDirectory;//是目录还是文件 0:是目录 1:不是目录
+	BOOL HasNext;//文件接收是否还有后续 0:没有 1:有
+	file_info() {
+		IsInvalid = FALSE;
+		IsDirectory = -1;
+		HasNext = TRUE;
+		memset(szFileName, 0, sizeof(szFileName));
+	}
+}FILEINFO, * PFILEINFO;
+
 std::string GetErrorinfo(int wsaErrCode);//网络错误码 //TODO:学习
 
 

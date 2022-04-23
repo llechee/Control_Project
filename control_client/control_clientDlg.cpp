@@ -68,7 +68,7 @@ void CcontrolclientDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_TREE_DIR, m_Tree);
 }
 
-int CcontrolclientDlg::SendCommandPacket(int nCmd, BYTE* pData, size_t nLength)
+int CcontrolclientDlg::SendCommandPacket(int nCmd, bool bAutoClose, BYTE* pData, size_t nLength)
 {
 	UpdateData();
 	CClientSocket* pClient = CClientSocket::getInstance();
@@ -82,7 +82,7 @@ int CcontrolclientDlg::SendCommandPacket(int nCmd, BYTE* pData, size_t nLength)
 	TRACE("Client Send ret %d\r\n", ret);//是否发送成功
 	int cmd = pClient->DealCommand();
 	TRACE("Client ack : %d\r\n", cmd);
-	pClient->CloseSocket();
+	if(bAutoClose) pClient->CloseSocket();//如果是自动关闭的
 	return cmd;
 }
 
@@ -92,6 +92,7 @@ BEGIN_MESSAGE_MAP(CcontrolclientDlg, CDialogEx)
 	ON_WM_QUERYDRAGICON()
 	ON_BN_CLICKED(IDC_BTN_TEST, &CcontrolclientDlg::OnBnClickedBtnTest)
 	ON_BN_CLICKED(IDC_BTN_FILEINFO, &CcontrolclientDlg::OnBnClickedBtnFileinfo)
+	ON_NOTIFY(NM_DBLCLK, IDC_TREE_DIR, &CcontrolclientDlg::OnNMDblclkTreeDir)
 END_MESSAGE_MAP()
 
 
@@ -229,4 +230,35 @@ void CcontrolclientDlg::OnBnClickedBtnFileinfo()//获取驱动信息的代码
 		}
 		dr += drivers[i];
 	}
+}
+
+CString CcontrolclientDlg::GetPath(HTREEITEM hTree)
+{
+	CString strRet, strTmp;
+	do {
+		strTmp = m_Tree.GetItemText(hTree);
+		strRet = strTmp + '\\' + strRet;
+		hTree = m_Tree.GetParentItem(hTree);
+	} while (hTree != NULL);
+	return strRet;
+}
+
+void CcontrolclientDlg::OnNMDblclkTreeDir(NMHDR* pNMHDR, LRESULT* pResult)
+{
+	// TODO: 在此添加控件通知处理程序代码
+	*pResult = 0;
+	CPoint ptMouse;
+	GetCursorPos(&ptMouse);
+	m_Tree.ScreenToClient(&ptMouse);
+	HTREEITEM hTreeSelected = m_Tree.HitTest(ptMouse, 0);
+	if (hTreeSelected == NULL) return;
+	CString strPath = GetPath(hTreeSelected);
+	int nCmd = SendCommandPacket(2, false, (BYTE*)(LPCTSTR)strPath, strPath.GetLength());
+	PFILEINFO pInfo = (PFILEINFO)CClientSocket::getInstance()->GetPacket().Data();
+	CClientSocket* pClient = CClientSocket::getInstance();
+	while (pInfo->HasNext) {
+		int cmd = pClient->DealCommand();
+		TRACE("fileinfo ack:%d\r\n", cmd);
+	}
+	pClient->CloseSocket();
 }
