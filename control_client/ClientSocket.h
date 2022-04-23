@@ -141,7 +141,7 @@ public:
 		}
 		return m_instance;
 	}
-	bool InitSocket(const std::string& IPAddress)
+	bool InitSocket(int nIP, int nPort)
 	{
 		// socket bind listen accept read write close
 			//server;
@@ -152,8 +152,8 @@ public:
 		sockaddr_in serv_addr;
 		memset(&serv_addr, 0, sizeof(serv_addr));
 		serv_addr.sin_family = AF_INET;
-		serv_addr.sin_addr.s_addr = inet_addr(IPAddress.c_str());
-		serv_addr.sin_port = htons(9537);//default port: 8848
+		serv_addr.sin_addr.s_addr = htonl(nIP);//主机字节序转成网路字节序
+		serv_addr.sin_port = htons(nPort);//default port: 8848
 		if (serv_addr.sin_addr.s_addr == INADDR_NONE) {
 			AfxMessageBox("指定的IP不存在!");
 			return false;

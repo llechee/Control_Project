@@ -48,7 +48,7 @@ int MakeDriverInfo() { //1-->A 2-->B 26-->Z // 查看分区是否存在
     }
     CPacket pack(1, (BYTE*)result.c_str(), result.size()); // 打包用 
     Dump((BYTE*)pack.Data(), pack.Size()); // 看看和想要的数据一样嘛  封装了打包过程
-    //CServerSocket::getInstance()->Send(pack);
+    CServerSocket::getInstance()->Send(pack);
     return 0;
 }
 

@@ -8,6 +8,7 @@
 #include "control_clientDlg.h"
 #include "afxdialogex.h"
 #include "ClientSocket.h"
+#include "Resource.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -64,14 +65,33 @@ void CcontrolclientDlg::DoDataExchange(CDataExchange* pDX)
 	CDialogEx::DoDataExchange(pDX);
 	DDX_IPAddress(pDX, IDC_IPADDRESS_SERV, m_server_address);
 	DDX_Text(pDX, IDC_EDIT_PORT, m_nPort);
+	DDX_Control(pDX, IDC_TREE_DIR, m_Tree);
+}
+
+int CcontrolclientDlg::SendCommandPacket(int nCmd, BYTE* pData, size_t nLength)
+{
+	UpdateData();
+	CClientSocket* pClient = CClientSocket::getInstance();
+	bool ret = pClient->InitSocket(m_server_address, atoi((LPCTSTR)m_nPort));//TODO:返回值需要处理
+	if (!ret) {
+		AfxMessageBox("网络初始化错误!");
+		return -1;
+	}
+	CPacket pack(nCmd, pData, nLength);
+	ret = pClient->Send(pack);
+	TRACE("Client Send ret %d\r\n", ret);//是否发送成功
+	int cmd = pClient->DealCommand();
+	TRACE("Client ack : %d\r\n", cmd);
+	pClient->CloseSocket();
+	return cmd;
 }
 
 BEGIN_MESSAGE_MAP(CcontrolclientDlg, CDialogEx)
 	ON_WM_SYSCOMMAND()
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
-	//ON_BN_CLICKED(IDC_BUTTON1, &CcontrolclientDlg::OnBnClickedButton1)
 	ON_BN_CLICKED(IDC_BTN_TEST, &CcontrolclientDlg::OnBnClickedBtnTest)
+	ON_BN_CLICKED(IDC_BTN_FILEINFO, &CcontrolclientDlg::OnBnClickedBtnFileinfo)
 END_MESSAGE_MAP()
 
 
@@ -107,6 +127,10 @@ BOOL CcontrolclientDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 设置小图标
 
 	// TODO: 在此添加额外的初始化代码
+	UpdateData();
+	m_server_address = 0x7F000001;//127.0.0.1
+	m_nPort = _T("9537");
+	UpdateData(FALSE);
 
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
@@ -163,18 +187,46 @@ HCURSOR CcontrolclientDlg::OnQueryDragIcon()
 
 void CcontrolclientDlg::OnBnClickedBtnTest()
 {
+	//UpdateData();//将控件的值赋值给成员变量
+	//// TODO: 在此添加控件通知处理程序代码
+	//CClientSocket* pClient = CClientSocket::getInstance();
+	//bool ret = pClient->InitSocket(m_server_address, atoi((LPCTSTR)m_nPort));//TODO:返回值需要处理
+	//if (!ret) {
+	//	AfxMessageBox("网络初始化错误!");
+	//	return;
+	//}
+	//CPacket pack(1981, NULL, 0);
+	//ret = pClient->Send(pack);
+	//TRACE("Client Send ret %d\r\n", ret);//是否发送成功
+	//int cmd = pClient->DealCommand();
+	//TRACE("Client ack : %d\r\n", cmd);
+	////TRACE("Client ack : %d\r\n", pClient->GetPacket().sCmd);
+	//pClient->CloseSocket();
+	//已简化
+	SendCommandPacket(1981);
+}
+
+
+void CcontrolclientDlg::OnBnClickedBtnFileinfo()//获取驱动信息的代码
+{
 	// TODO: 在此添加控件通知处理程序代码
-	CClientSocket* pClient = CClientSocket::getInstance();
-	bool ret = pClient->InitSocket("127.0.0.1");//TODO:返回值需要处理
-	if (!ret) {
-		AfxMessageBox("网络初始化错误!");
+	int ret = SendCommandPacket(1);
+	if (ret == -1) {
+		AfxMessageBox(_T("命令处理失败!"));
 		return;
 	}
-	CPacket pack(1981, NULL, 0);
-	ret = pClient->Send(pack);
-	TRACE("Client Send ret %d\r\n", ret);//是否发送成功
-	int cmd = pClient->DealCommand();
-	TRACE("Client ack : %d\r\n", cmd);
-	//TRACE("Client ack : %d\r\n", pClient->GetPacket().sCmd);
-	pClient->CloseSocket();
+	CClientSocket* pClient = CClientSocket::getInstance();
+	std::string drivers = pClient->GetPacket().strData;
+	std::string dr;
+	m_Tree.DeleteAllItems();
+	for (size_t i = 0; i < drivers.size(); i++) {
+	//for (size_t i = drivers.size()-1; i > 0; i--) {
+		if (drivers[i] == ',') {
+			dr += ':';
+			m_Tree.InsertItem(dr.c_str(), TVI_ROOT, TVI_LAST);
+			dr.clear();
+			continue;
+		}
+		dr += drivers[i];
+	}
 }
