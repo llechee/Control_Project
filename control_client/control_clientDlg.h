@@ -34,4 +34,6 @@ protected:
 public:
 	afx_msg void OnBnClickedButton1();
 	afx_msg void OnBnClickedBtnTest();
+	DWORD m_server_address;
+	CString m_nPort;
 };

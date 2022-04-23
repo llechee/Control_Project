@@ -53,6 +53,8 @@ END_MESSAGE_MAP()
 
 CcontrolclientDlg::CcontrolclientDlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_CONTROL_CLIENT_DIALOG, pParent)
+	, m_server_address(0)
+	, m_nPort(_T(""))
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -60,6 +62,8 @@ CcontrolclientDlg::CcontrolclientDlg(CWnd* pParent /*=nullptr*/)
 void CcontrolclientDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
+	DDX_IPAddress(pDX, IDC_IPADDRESS_SERV, m_server_address);
+	DDX_Text(pDX, IDC_EDIT_PORT, m_nPort);
 }
 
 BEGIN_MESSAGE_MAP(CcontrolclientDlg, CDialogEx)
