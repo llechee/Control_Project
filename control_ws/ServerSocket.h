@@ -48,7 +48,8 @@ public:
 				break;
 			}
 		}
-		if (i + 4 + 2 + 2 >= nSize) // 判断解析是否成功 baotou4 length commed sum 422  包数据可能不全,或者包头未能全部接收
+		//TODO: >= : =
+		if (i + 4 + 2 + 2 > nSize) // 判断解析是否成功 baotou4 length commed sum 422  包数据可能不全,或者包头未能全部接收
 		{	//i用来标记现在到哪里了 读包头+2 读长度+4 读commond+2 读data+nlength-4 读sum+2  
 			//为什么用i 前面有可能有废数据 需要把后面的包移到buffer前面(buffer前面是不要的数据)
 			nSize = 0;
@@ -146,7 +147,7 @@ public:
 		memset(&serv_addr, 0, sizeof(serv_addr));
 		serv_addr.sin_family = AF_INET;
 		serv_addr.sin_addr.s_addr = INADDR_ANY;
-		serv_addr.sin_port = htons(8848);//default port: 8848
+		serv_addr.sin_port = htons(9537);//default port: 8848
 		if (bind(m_sock, (sockaddr*)&serv_addr, sizeof(serv_addr)) == -1) return false;
 		if (listen(m_sock, 1) == -1) return false;
 		return true;
@@ -154,10 +155,12 @@ public:
 	}
 	bool AcceptClient()
 	{
+		TRACE("Begin Accept!\r\n");
 		sockaddr_in client_addr;
 		//char buffer[1024] = "";
 		int client_sz = sizeof(client_addr);
-		m_client = accept(m_sock, (sockaddr*)&client_addr, &client_sz);
+		m_client = accept(m_sock, (sockaddr*)&client_addr, &client_sz);//返回套接字
+		TRACE("m_client = %d\r\n", m_client);
 		if (m_client == -1)  return false;
 		return true;
 		//recv(client, buffer, sizeof(buffer), 0);
@@ -168,18 +171,24 @@ public:
 	int DealCommand() // 解析命令 from client 
 	{
 		if (m_client == -1) return -1;
-		//char buffer[1024] = "";
 		//缓冲区封装包
 		char* buffer = new char[BUFFER_SIZE];
+		if (buffer == NULL) {
+			TRACE("内存不足! server buffer !\r\n");
+			return -2;
+		}
 		memset(buffer, 0, BUFFER_SIZE);
 		size_t index = 0;
 		while (true)
 		{//
 			size_t len = recv(m_client, buffer + index, BUFFER_SIZE - index, 0);
+			//len += 2;//TODO: delete
 			if (len <= 0)
 			{
+				delete[]buffer;
 				return -1;
 			}
+			TRACE("recv len : %d\r\n", len);
 			index += len;
 			len = index;
 			//TODO:处理命令
@@ -187,9 +196,11 @@ public:
 			if (len > 0) {
 				memmove(buffer, buffer + len, BUFFER_SIZE - len);
 				index -= len;
+				delete[]buffer;
 				return m_packet.sCmd;
 			}
 		}
+		delete[]buffer;
 		return -1;
 	}
 	bool Send(char* const pData, int nSize)

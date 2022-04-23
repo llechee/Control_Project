@@ -347,8 +347,17 @@ int UnLockMachine()
 {
     //dlg.SendMessage(WM_KEYDOWN, 0x41, 0x01E0001);//思考 线程消息的传递
     PostThreadMessage(threadid, WM_KEYDOWN, 0x41, 0);
-    CPacket pack(7, NULL, 0);
+    CPacket pack(7777, NULL, 0);
     CServerSocket::getInstance()->Send(pack);
+    return 0;
+}
+
+//连接测试
+int testconnect()
+{
+    CPacket pack(1981, NULL, 0);
+    bool ret = CServerSocket::getInstance()->Send(pack);
+    TRACE("Send ret = %d\r\n", ret);
     return 0;
 }
 
@@ -379,6 +388,9 @@ int ExcuteCommand(int nCmd)
         break;
     case 8://解锁
         ret = UnLockMachine();
+        break;
+    case 1981:
+        ret = testconnect();
         break;
     }
     return ret;
@@ -422,14 +434,17 @@ int main()
                     MessageBox(NULL, _T("接入用户失败,正在重试!"), _T("接入用户失败!"), MB_OK | MB_ICONERROR);
                     count++;
                 }
+                TRACE("Acceptclirnt return true\r\n");
                 int ret = pserver->DealCommand();//获取命令
+                TRACE("dealcommand ret : %d\r\n", ret);
                 //TODO:
-                if (ret == 0) {//如果命令接收ok的话
-                    ret = ExcuteCommand(pserver->GetPacket().sCmd);
+                if (ret > 0) {//如果命令接收ok的话
+                    ret = ExcuteCommand(ret);//用ret来表明command
                     if (ret != 0) {
                         TRACE("执行命令失败 : %d ret = %d\r\n", pserver->GetPacket().sCmd, ret);//看看到底是谁的命令执行失败
                     }//需要定义短连接
                     pserver->CloseClient();
+                    TRACE("Command has done!\r\n");
                 }
             }
 

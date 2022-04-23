@@ -2,6 +2,7 @@
 #include "pch.h"
 #include "framework.h"
 #include "string"
+#include <vector>
 
 #pragma pack(push)
 #pragma pack(1)
@@ -49,7 +50,8 @@ public:
 				break;
 			}
 		}
-		if (i + 4 + 2 + 2 >= nSize) // 判断解析是否成功 baotou4 length commed sum 422  包数据可能不全,或者包头未能全部接收
+		//TODO: >= : =
+		if (i + 4 + 2 + 2 > nSize) // 判断解析是否成功 baotou4 length commed sum 422  包数据可能不全,或者包头未能全部接收
 		{	//i用来标记现在到哪里了 读包头+2 读长度+4 读commond+2 读data+nlength-4 读sum+2  
 			//为什么用i 前面有可能有废数据 需要把后面的包移到buffer前面(buffer前面是不要的数据)
 			nSize = 0;
@@ -143,14 +145,15 @@ public:
 	{
 		// socket bind listen accept read write close
 			//server;
-
+		if (m_sock != INVALID_SOCKET)  CloseSocket();
+		m_sock = socket(PF_INET, SOCK_STREAM, 0);
 		//TODO:校验
 		if (m_sock == -1) return false;
 		sockaddr_in serv_addr;
 		memset(&serv_addr, 0, sizeof(serv_addr));
 		serv_addr.sin_family = AF_INET;
 		serv_addr.sin_addr.s_addr = inet_addr(IPAddress.c_str());
-		serv_addr.sin_port = htons(8848);//default port: 8848
+		serv_addr.sin_port = htons(9537);//default port: 8848
 		if (serv_addr.sin_addr.s_addr == INADDR_NONE) {
 			AfxMessageBox("指定的IP不存在!");
 			return false;
@@ -171,7 +174,13 @@ public:
 		if (m_sock == -1) return -1;
 		//char buffer[1024] = "";
 		//缓冲区封装包
-		char* buffer = new char[BUFFER_SIZE];
+		char* buffer = m_buffer.data();
+		//TODO: 为什么不用delete buffer ? 服务器收命令 短链接 可能会发送多个数据 收是单个 发是多个
+		//为什么需要成员变量处理缓冲区拿包? 服务端会应答多个包 不清楚服务端发送模式 比如TCP每次发包都会应答,那么缓冲区可能有很多个包,我们读取一个包后面就会丢掉
+		if (buffer == NULL) {
+			TRACE("内存不足! server buffer !\r\n");
+			return -2;
+		}
 		memset(buffer, 0, BUFFER_SIZE);
 		size_t index = 0;
 		while (true)
@@ -179,6 +188,7 @@ public:
 			size_t len = recv(m_sock, buffer + index, BUFFER_SIZE - index, 0);
 			if (len <= 0)
 			{
+				//delete[]buffer;
 				return -1;
 			}
 			index += len;
@@ -188,9 +198,11 @@ public:
 			if (len > 0) {
 				memmove(buffer, buffer + len, BUFFER_SIZE - len);
 				index -= len;
+				//delete[]buffer;
 				return m_packet.sCmd;
 			}
 		}
+		//delete[]buffer;
 		return -1;
 	}
 	bool Send(char* const pData, int nSize)
@@ -199,6 +211,7 @@ public:
 		return send(m_sock, pData, nSize, 0) > 0;
 	}
 	bool Send(CPacket& pack) {
+		TRACE("m_sock : %d\r\n", m_sock);
 		if (m_sock == -1) return false;
 		return send(m_sock, pack.Data(), pack.Size(), 0) > 0;
 	}
@@ -216,8 +229,16 @@ public:
 		}
 		return false;
 	}
+	CPacket& GetPacket() {//拿到cmd
+		return m_packet;
+	}
+	void CloseSocket() {
+		closesocket(m_sock);
+		m_sock = INVALID_SOCKET;
+	}
 
 private:
+	std::vector<char> m_buffer;
 	SOCKET m_sock;
 	CPacket m_packet;
 	CClientSocket& operator=(const CClientSocket& ss) {} //ss = server_scoket 重载
@@ -233,7 +254,8 @@ private:
 			MessageBox(NULL, _T("套接字初始化失败!"), _T("初始化错误!"), MB_OK | MB_ICONERROR); // MFC
 			exit(0);
 		}
-		m_sock = socket(PF_INET, SOCK_STREAM, 0);
+		m_buffer.resize(BUFFER_SIZE);
+		//m_sock = socket(PF_INET, SOCK_STREAM, 0);
 	}
 	~CClientSocket() //析构函数
 	{

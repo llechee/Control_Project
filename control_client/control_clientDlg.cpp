@@ -164,5 +164,13 @@ void CcontrolclientDlg::OnBnClickedBtnTest()
 	bool ret = pClient->InitSocket("127.0.0.1");//TODO:返回值需要处理
 	if (!ret) {
 		AfxMessageBox("网络初始化错误!");
+		return;
 	}
+	CPacket pack(1981, NULL, 0);
+	ret = pClient->Send(pack);
+	TRACE("Client Send ret %d\r\n", ret);//是否发送成功
+	int cmd = pClient->DealCommand();
+	TRACE("Client ack : %d\r\n", cmd);
+	//TRACE("Client ack : %d\r\n", pClient->GetPacket().sCmd);
+	pClient->CloseSocket();
 }
