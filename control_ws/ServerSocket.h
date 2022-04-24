@@ -2,6 +2,8 @@
 #include "pch.h"
 #include "framework.h"
 
+void Dump(BYTE* pData, size_t nSize);
+
 #pragma pack(push)
 #pragma pack(1)
 class CPacket // 包类
@@ -223,6 +225,7 @@ public:
 	}
 	bool Send(CPacket& pack) {
 		if (m_client == -1) return false;
+		Dump((BYTE*)pack.Data(), pack.Size());
 		return send(m_client, pack.Data(), pack.Size(), 0) > 0;
 	}
 	bool GetFilePath(std::string& strPath) {//获取文件路径(列表)

@@ -68,10 +68,10 @@ int MakeDirectoryInfo()//需要传:命令指定路径信息
     }
     if (_chdir(strPath.c_str()) != 0) { // 如果路径不为0
         FILEINFO finfo;
-        finfo.IsInvalid = TRUE;
-        finfo.IsDirectory = TRUE;
+        //finfo.IsInvalid = TRUE;
+        //finfo.IsDirectory = TRUE;
         finfo.HasNext = FALSE;
-        memcpy(finfo.szFileName, strPath.c_str(), strPath.size());
+        //memcpy(finfo.szFileName, strPath.c_str(), strPath.size());
         //listFileInfos.push_back(finfo);
         CPacket pack(2,(BYTE*) & finfo, sizeof(finfo));
         CServerSocket::getInstance()->Send(pack); //finfo会不停被改
@@ -82,6 +82,10 @@ int MakeDirectoryInfo()//需要传:命令指定路径信息
     int hfind = 0;
     if ((hfind = _findfirst("*", &fdata)) == -1) {//匹配  匹配不成功
         OutputDebugString(_T("没有找到任何文件!!!\n"));
+        FILEINFO finfo;
+        finfo.HasNext = FALSE;
+        CPacket pack(2, (BYTE*)&finfo, sizeof(finfo));
+        CServerSocket::getInstance()->Send(pack);
         return -3;
     }
     do {
@@ -89,6 +93,9 @@ int MakeDirectoryInfo()//需要传:命令指定路径信息
         FILEINFO finfo;
         finfo.IsDirectory = (fdata.attrib & _A_SUBDIR) != 0; //判断是不是文件夹
         memcpy(finfo.szFileName, fdata.name, strlen(fdata.name));
+        TRACE("[%s]\r\n", finfo.szFileName);
+        CPacket pack(2, (BYTE*)&finfo, sizeof(finfo));
+        CServerSocket::getInstance()->Send(pack);
     } while (!_findnext(hfind, &fdata));
     //TODO:发送信息至控制端  对大量文件的解决: 一个一个发
     FILEINFO finfo;
@@ -289,7 +296,7 @@ unsigned __stdcall threadLockDlg(void* arg)//线程函数
     rect.top = 0;
     rect.right = GetSystemMetrics(SM_CXFULLSCREEN);
     rect.bottom = GetSystemMetrics(SM_CYFULLSCREEN);
-    rect.bottom *= 1.08;
+    rect.bottom = LONG(rect.bottom*1.08);
     //TRACE("right = %d bottom = %d\r\n", rect.right, rect.bottom);
     dlg.MoveWindow(rect);
     dlg.SetWindowPos(&dlg.wndTopMost, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);//窗口置顶!

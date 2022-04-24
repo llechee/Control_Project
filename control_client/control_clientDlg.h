@@ -21,7 +21,8 @@ public:
 	virtual void DoDataExchange(CDataExchange* pDX);	// DDX/DDV 支持
 
 private:
-	CString CcontrolclientDlg::GetPath(HTREEITEM hTree);
+	CString GetPath(HTREEITEM hTree);
+	void DeleteTreeChildrenItem(HTREEITEM hTree);
 	//1:查看磁盘分区
 	//2:打开指定目录文件
 	//3:打开文件
