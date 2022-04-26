@@ -96,6 +96,9 @@ BEGIN_MESSAGE_MAP(CcontrolclientDlg, CDialogEx)
 	ON_NOTIFY(NM_DBLCLK, IDC_TREE_DIR, &CcontrolclientDlg::OnNMDblclkTreeDir)
 	ON_NOTIFY(NM_CLICK, IDC_TREE_DIR, &CcontrolclientDlg::OnNMClickTreeDir)
 	ON_NOTIFY(NM_RCLICK, IDC_LIST_FILE, &CcontrolclientDlg::OnNMRClickListFile)
+	ON_COMMAND(ID_DOWNLOAD_FILE, &CcontrolclientDlg::OnDownloadFile)
+	ON_COMMAND(ID_DELETE_FILE, &CcontrolclientDlg::OnDeleteFile)
+	ON_COMMAND(ID_OPEN_FILE, &CcontrolclientDlg::OnOpenFile)
 END_MESSAGE_MAP()
 
 
@@ -311,7 +314,7 @@ void CcontrolclientDlg::OnNMClickTreeDir(NMHDR* pNMHDR, LRESULT* pResult)
 }
 
 
-void CcontrolclientDlg::OnNMRClickListFile(NMHDR* pNMHDR, LRESULT* pResult)
+void CcontrolclientDlg::OnNMRClickListFile(NMHDR* pNMHDR, LRESULT* pResult)//目录右键相关操作
 {
 	LPNMITEMACTIVATE pNMItemActivate = reinterpret_cast<LPNMITEMACTIVATE>(pNMHDR);
 	// TODO: 在此添加控件通知处理程序代码
@@ -328,4 +331,63 @@ void CcontrolclientDlg::OnNMRClickListFile(NMHDR* pNMHDR, LRESULT* pResult)
 	if (pPupup != NULL) {
 		pPupup->TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTALIGN, ptMouse.x, ptMouse.y, this);
 	}
+}
+
+
+void CcontrolclientDlg::OnDownloadFile()
+{
+	// TODO: 在此添加命令处理程序代码
+	int nListSelected = m_List.GetSelectionMark();
+	CString strFile = m_List.GetItemText(nListSelected, 0);//获得点击的标记 
+	CFileDialog dlg(FALSE, "*",
+		strFile, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, NULL, this);
+	if (dlg.DoModal() == IDOK) {
+		FILE* pFile = fopen(dlg.GetPathName(), "wb+");//拿到完整路径名后打开
+		if (pFile == NULL) {
+			AfxMessageBox(_T("文件打开异常,没有权限保存文件!"));
+			return;
+		}
+		HTREEITEM hSelected = m_Tree.GetSelectedItem();//拿路径
+		strFile = GetPath(hSelected) + strFile;//拿文件名 拼path
+		TRACE("getapth %s\r\n", LPCSTR(strFile));
+		int ret = SendCommandPacket(4, false, (BYTE*)(LPCSTR)strFile, strFile.GetLength());
+		if (ret < 0) {
+			AfxMessageBox("下载文件失败!");
+			TRACE("下载失败 : ret = %d\r\n", ret);
+			return;
+		}
+		CClientSocket* pClient = CClientSocket::getInstance();
+		long long nLength = *(long long*)pClient->GetPacket().strData.c_str();
+		if (nLength == 0) {//读不到文件或者文件是0字节
+			AfxMessageBox("文件无法读取!");
+			return;
+		}
+		long long nCount = 0;
+		
+		while (nCount < nLength) {
+			ret = pClient->DealCommand();
+			if (ret < 0) {
+				AfxMessageBox("传输失败!");
+				TRACE("文件传输失败 ret = %d\r\n", ret);
+				break;
+			}
+			;
+			fwrite(pClient->GetPacket().strData.c_str(), 1, pClient->GetPacket().strData.size(), pFile);//每成功接收到一个包,就把size写到文件里面去
+			nCount += pClient->GetPacket().strData.size();
+		}
+		fclose(pFile);
+		pClient->CloseSocket();
+	}
+}
+
+
+void CcontrolclientDlg::OnDeleteFile()
+{
+	// TODO: 在此添加命令处理程序代码
+}
+
+
+void CcontrolclientDlg::OnOpenFile()
+{
+	// TODO: 在此添加命令处理程序代码
 }
