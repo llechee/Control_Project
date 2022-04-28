@@ -21,6 +21,7 @@ public:
 	virtual void DoDataExchange(CDataExchange* pDX);	// DDX/DDV 支持
 
 private:
+	void LoadFileCurrent();//为了删除文件设计
 	void LoadFileList();
 	CString GetPath(HTREEITEM hTree);
 	void DeleteTreeChildrenItem(HTREEITEM hTree);
@@ -28,6 +29,12 @@ private:
 	//2:打开指定目录文件
 	//3:打开文件
 	//4:下载文件
+	//5:鼠标操作
+	//6:发送屏幕内容
+	//7:锁机
+	//8:解锁
+	//9:删除文件
+	//1981为测试用
 	//返回值是命令号
 	int SendCommandPacket(int nCmd, bool bAutoClose = true, BYTE* pData = NULL, size_t nLength = 0);
 
