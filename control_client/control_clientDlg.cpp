@@ -100,6 +100,8 @@ BEGIN_MESSAGE_MAP(CcontrolclientDlg, CDialogEx)
 	ON_COMMAND(ID_DELETE_FILE, &CcontrolclientDlg::OnDeleteFile)
 	ON_COMMAND(ID_OPEN_FILE, &CcontrolclientDlg::OnOpenFile)
 	ON_MESSAGE(WM_SEND_PACKET,&CcontrolclientDlg::OnSendPacket)
+	ON_BN_CLICKED(IDC_BTN_START_WATCH, &CcontrolclientDlg::OnBnClickedBtnStartWatch)
+	ON_WM_TIMER()
 END_MESSAGE_MAP()
 
 
@@ -140,7 +142,8 @@ BOOL CcontrolclientDlg::OnInitDialog()
 	m_nPort = _T("9537");
 	UpdateData(FALSE);
 	m_dlgStatus.Create(IDD_DLG_STATUS, this);
-	m_dlgStatus.ShowWindow(SW_HIDE);
+	m_dlgStatus.ShowWindow(SW_HIDE);//隐藏正在下载页面
+	m_isFull = false;//初始化 缓冲区为0
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
 
@@ -244,6 +247,54 @@ void CcontrolclientDlg::OnBnClickedBtnFileinfo()//获取驱动信息的代码
 	HTREEITEM hTemp = m_Tree.InsertItem(dr.c_str(), TVI_ROOT, TVI_LAST);
 	m_Tree.InsertItem(NULL, hTemp, TVI_LAST);
 	dr.clear();
+}
+
+
+void CcontrolclientDlg::threadEntryForSendSreen(void* arg)
+{
+	CcontrolclientDlg* thiz = (CcontrolclientDlg*)arg;
+	thiz->threadSendSreen();
+	_endthread();
+}
+
+
+void CcontrolclientDlg::threadSendSreen()
+{
+	CClientSocket* pClient = NULL;
+	do {
+		pClient = CClientSocket::getInstance();
+	} while (pClient == NULL);
+	for (;;) {
+		CPacket pack(6, NULL, 0);
+		bool ret = pClient->Send(pack);
+		if (ret) {
+			int cmd = pClient->DealCommand();
+			if (cmd == 6) {
+				if (m_isFull == false) {//更新数据到缓存
+					BYTE* pData = (BYTE*)pClient->GetPacket().strData.c_str();//TODO: 存入cimage
+					HGLOBAL hMen = GlobalAlloc(GMEM_MOVEABLE, 0);
+					if (hMen == NULL) {
+						TRACE("about screen 内存不足");
+						Sleep(1);
+						continue;
+					}
+					IStream* pStream = NULL;
+					HRESULT hRet = CreateStreamOnHGlobal(hMen, TRUE, &pStream);
+					if (hRet == S_OK) {
+						ULONG length = 0;
+						pStream->Write(pData, pClient->GetPacket().strData.size(), &length);
+						LARGE_INTEGER bg = { 0 };
+						pStream->Seek(bg, STREAM_SEEK_SET, NULL);
+						m_image.Load(pStream);
+						m_isFull = true;
+					}
+				}
+			}
+		}
+		else {
+			Sleep(1);
+		}
+	}
 }
 
 
@@ -475,4 +526,21 @@ LRESULT CcontrolclientDlg::OnSendPacket(WPARAM wParam, LPARAM lParam)
 	CString strFile = (LPCSTR)lParam;
 	int ret = SendCommandPacket(wParam >> 1,wParam & 1, (BYTE*)(LPCSTR)strFile, strFile.GetLength());
 	return ret;
+}
+
+
+void CcontrolclientDlg::OnBnClickedBtnStartWatch()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	_beginthread(CcontrolclientDlg::threadEntryForSendSreen, 0, this);
+	CWatchDialog dlg(this);
+	dlg.DoModal();
+}
+
+
+void CcontrolclientDlg::OnTimer(UINT_PTR nIDEvent)
+{
+	// TODO: 在此添加消息处理程序代码和/或调用默认值
+
+	CDialogEx::OnTimer(nIDEvent);
 }

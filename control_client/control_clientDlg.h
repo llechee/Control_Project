@@ -5,6 +5,7 @@
 #pragma once
 #include "ClientSocket.h"
 #include "StatusDlg.h"
+#include "WatchDialog.h"
 
 #define WM_SEND_PACKET (WM_USER + 1)//自定义的消息 发送数据包的消息
 
@@ -23,7 +24,19 @@ public:
 	protected:
 	virtual void DoDataExchange(CDataExchange* pDX);	// DDX/DDV 支持
 
+public:
+	bool isFull() const {//后缀加const 表示不会修改任何成员变量
+		return m_isFull;
+	}
+	CImage& GetImage() {
+		return m_image;
+	}
 private:
+	
+	static void threadEntryForSendSreen(void* arg);
+	CImage m_image;//发送屏幕的缓存
+	bool m_isFull;;//判断是否有数据 true表示有缓存数据
+	void threadSendSreen();
 	static void threadEntryForDownloadFile(void* arg);
 	void threadDownloadFile();
 	void LoadFileCurrent();//为了删除文件设计
@@ -70,4 +83,6 @@ public:
 	afx_msg void OnDeleteFile();
 	afx_msg void OnOpenFile();
 	afx_msg LRESULT OnSendPacket(WPARAM wParam, LPARAM lParam);
+	afx_msg void OnBnClickedBtnStartWatch();
+	afx_msg void OnTimer(UINT_PTR nIDEvent);
 };
