@@ -99,6 +99,7 @@ BEGIN_MESSAGE_MAP(CcontrolclientDlg, CDialogEx)
 	ON_COMMAND(ID_DOWNLOAD_FILE, &CcontrolclientDlg::OnDownloadFile)
 	ON_COMMAND(ID_DELETE_FILE, &CcontrolclientDlg::OnDeleteFile)
 	ON_COMMAND(ID_OPEN_FILE, &CcontrolclientDlg::OnOpenFile)
+	ON_MESSAGE(WM_SEND_PACKET,&CcontrolclientDlg::OnSendPacket)
 END_MESSAGE_MAP()
 
 
@@ -138,7 +139,8 @@ BOOL CcontrolclientDlg::OnInitDialog()
 	m_server_address = 0x7F000001;//127.0.0.1
 	m_nPort = _T("9537");
 	UpdateData(FALSE);
-
+	m_dlgStatus.Create(IDD_DLG_STATUS, this);
+	m_dlgStatus.ShowWindow(SW_HIDE);
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
 
@@ -229,14 +231,78 @@ void CcontrolclientDlg::OnBnClickedBtnFileinfo()//获取驱动信息的代码
 	for (size_t i = 0; i < drivers.size(); i++) {
 	//for (size_t i = drivers.size()-1; i > 0; i--) {
 		if (drivers[i] == ',') {
-			dr += ':';
+			dr = dr + ':';
 			HTREEITEM hTemp = m_Tree.InsertItem(dr.c_str(), TVI_ROOT, TVI_LAST);
 			m_Tree.InsertItem(NULL, hTemp, TVI_LAST);
 			dr.clear();
 			continue;
 		}
-		dr += drivers[i];
+		dr = dr + drivers[i];
 	}
+	//TODO:需要优化 自定义
+	dr = dr + ':';
+	HTREEITEM hTemp = m_Tree.InsertItem(dr.c_str(), TVI_ROOT, TVI_LAST);
+	m_Tree.InsertItem(NULL, hTemp, TVI_LAST);
+	dr.clear();
+}
+
+
+void CcontrolclientDlg::threadEntryForDownloadFile(void* arg)
+{
+	CcontrolclientDlg* thiz = (CcontrolclientDlg*)arg;
+	thiz->threadDownloadFile();
+	_endthread();
+}
+
+void CcontrolclientDlg::threadDownloadFile()
+{
+	int nListSelected = m_List.GetSelectionMark();
+	CString strFile = m_List.GetItemText(nListSelected, 0);//获得点击的标记 
+	CFileDialog dlg(FALSE, NULL,
+		strFile, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, NULL, this);
+	if (dlg.DoModal() == IDOK) {
+		FILE* pFile = fopen(dlg.GetPathName(), "wb+");//拿到完整路径名后打开
+		if (pFile == NULL) {
+			AfxMessageBox(_T("文件打开异常,没有权限保存文件!"));
+			m_dlgStatus.ShowWindow(SW_HIDE);
+			EndWaitCursor();
+			return;
+		}
+		HTREEITEM hSelected = m_Tree.GetSelectedItem();//拿路径
+		strFile = GetPath(hSelected) + strFile;//拿文件名 拼path
+		TRACE("getapth %s\r\n", LPCSTR(strFile));
+		CClientSocket* pClient = CClientSocket::getInstance();
+		do {
+			//int ret = SendCommandPacket(4, false, (BYTE*)(LPCSTR)strFile, strFile.GetLength());
+			int ret = SendMessage(WM_SEND_PACKET, 4 << 1 | 0, (LPARAM)(LPCSTR)strFile);
+			if (ret < 0) {
+				AfxMessageBox("下载文件失败!");
+				TRACE("下载失败 : ret = %d\r\n", ret);
+				break;
+			}
+			long long nLength = *(long long*)pClient->GetPacket().strData.c_str();
+			if (nLength == 0) {//读不到文件或者文件是0字节
+				AfxMessageBox("文件无法读取!");
+				break;
+			}
+			long long nCount = 0;
+			while (nCount < nLength) {
+				ret = pClient->DealCommand();
+				if (ret < 0) {
+					AfxMessageBox("传输失败!");
+					TRACE("文件传输失败 ret = %d\r\n", ret);
+					break;
+				}
+				fwrite(pClient->GetPacket().strData.c_str(), 1, pClient->GetPacket().strData.size(), pFile);//每成功接收到一个包,就把size写到文件里面去
+				nCount += pClient->GetPacket().strData.size();
+			}
+		} while (false);
+		fclose(pFile);
+		pClient->CloseSocket();
+	}
+	m_dlgStatus.ShowWindow(SW_HIDE);
+	EndWaitCursor();
+	MessageBox(_T("下载完成!"), _T("完成"));
 }
 
 CString CcontrolclientDlg::GetPath(HTREEITEM hTree)
@@ -286,6 +352,7 @@ void CcontrolclientDlg::LoadFileList()
 	int nCmd = SendCommandPacket(2, false, (BYTE*)(LPCTSTR)strPath, strPath.GetLength());//获取点击信息
 	PFILEINFO pInfo = (PFILEINFO)CClientSocket::getInstance()->GetPacket().strData.c_str();
 	CClientSocket* pClient = CClientSocket::getInstance();
+	int Count = 0;//计数用
 	while (pInfo->HasNext) {
 		TRACE("[%s] dir %d\r\n", pInfo->szFileName, pInfo->IsDirectory);
 		if (pInfo->IsDirectory) {
@@ -302,6 +369,7 @@ void CcontrolclientDlg::LoadFileList()
 		else {
 			m_List.InsertItem(0, pInfo->szFileName);
 		}
+		Count++;
 		int cmd = pClient->DealCommand();
 		TRACE("tree button ack : %d\r\n", cmd);
 		if (cmd < 0) break;
@@ -309,6 +377,7 @@ void CcontrolclientDlg::LoadFileList()
 	}
 	//hastext为空 数据就是无效的
 	pClient->CloseSocket();
+	TRACE("Count : %d\r\n", Count);
 }
 
 void CcontrolclientDlg::DeleteTreeChildrenItem(HTREEITEM hTree)
@@ -319,6 +388,7 @@ void CcontrolclientDlg::DeleteTreeChildrenItem(HTREEITEM hTree)
 		if (hSub != NULL) m_Tree.DeleteItem(hSub);
 	} while (hSub != NULL);
 }
+
 
 void CcontrolclientDlg::OnNMDblclkTreeDir(NMHDR* pNMHDR, LRESULT* pResult)
 {
@@ -358,50 +428,15 @@ void CcontrolclientDlg::OnNMRClickListFile(NMHDR* pNMHDR, LRESULT* pResult)//目
 
 void CcontrolclientDlg::OnDownloadFile()
 {
+	////添加线程函数
+	_beginthread(CcontrolclientDlg::threadEntryForDownloadFile, 0, this);
 	// TODO: 在此添加命令处理程序代码
-	int nListSelected = m_List.GetSelectionMark();
-	CString strFile = m_List.GetItemText(nListSelected, 0);//获得点击的标记 
-	CFileDialog dlg(FALSE, NULL,
-		strFile, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, NULL, this);
-	if (dlg.DoModal() == IDOK) {
-		FILE* pFile = fopen(dlg.GetPathName(), "wb+");//拿到完整路径名后打开
-		if (pFile == NULL) {
-			AfxMessageBox(_T("文件打开异常,没有权限保存文件!"));
-			return;
-		}
-		HTREEITEM hSelected = m_Tree.GetSelectedItem();//拿路径
-		strFile = GetPath(hSelected) + strFile;//拿文件名 拼path
-		TRACE("getapth %s\r\n", LPCSTR(strFile));
-		CClientSocket* pClient = CClientSocket::getInstance();
-		do {
-			int ret = SendCommandPacket(4, false, (BYTE*)(LPCSTR)strFile, strFile.GetLength());
-			if (ret < 0) {
-				AfxMessageBox("下载文件失败!");
-				TRACE("下载失败 : ret = %d\r\n", ret);
-				break;
-			}
-			long long nLength = *(long long*)pClient->GetPacket().strData.c_str();
-			if (nLength == 0) {//读不到文件或者文件是0字节
-				AfxMessageBox("文件无法读取!");
-				break;
-			}
-			long long nCount = 0;
-
-			while (nCount < nLength) {
-				ret = pClient->DealCommand();
-				if (ret < 0) {
-					AfxMessageBox("传输失败!");
-					TRACE("文件传输失败 ret = %d\r\n", ret);
-					break;
-				}
-				;
-				fwrite(pClient->GetPacket().strData.c_str(), 1, pClient->GetPacket().strData.size(), pFile);//每成功接收到一个包,就把size写到文件里面去
-				nCount += pClient->GetPacket().strData.size();
-			}
-		} while (false);
-		fclose(pFile);
-		pClient->CloseSocket();
-	}
+	//Sleep(50);
+	BeginWaitCursor();//光标
+	m_dlgStatus.m_info.SetWindowText(_T("执行中......"));
+	m_dlgStatus.ShowWindow(SW_SHOW);
+	m_dlgStatus.CenterWindow(this);
+	m_dlgStatus.SetActiveWindow();
 }
 
 
@@ -433,4 +468,11 @@ void CcontrolclientDlg::OnOpenFile()
 	if (ret < 0) {
 		AfxMessageBox("打开文件失败!");
 	}
+}
+
+LRESULT CcontrolclientDlg::OnSendPacket(WPARAM wParam, LPARAM lParam)
+{
+	CString strFile = (LPCSTR)lParam;
+	int ret = SendCommandPacket(wParam >> 1,wParam & 1, (BYTE*)(LPCSTR)strFile, strFile.GetLength());
+	return ret;
 }

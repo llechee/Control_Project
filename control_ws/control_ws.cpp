@@ -88,6 +88,7 @@ int MakeDirectoryInfo()//需要传:命令指定路径信息
         CServerSocket::getInstance()->Send(pack);
         return -3;
     }
+    int count = 0;//计数用 监测文件夹的数量
     do {
         //TODO: 把数据传回给控制端
         FILEINFO finfo;
@@ -96,7 +97,9 @@ int MakeDirectoryInfo()//需要传:命令指定路径信息
         TRACE("[%s]\r\n", finfo.szFileName);
         CPacket pack(2, (BYTE*)&finfo, sizeof(finfo));
         CServerSocket::getInstance()->Send(pack);
+        count++;
     } while (!_findnext(hfind, &fdata));
+    TRACE("send count : %d\r\n", count);
     //TODO:发送信息至控制端  对大量文件的解决: 一个一个发
     FILEINFO finfo;
     finfo.HasNext = FALSE;

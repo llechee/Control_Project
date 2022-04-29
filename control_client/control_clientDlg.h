@@ -3,7 +3,10 @@
 //
 
 #pragma once
+#include "ClientSocket.h"
+#include "StatusDlg.h"
 
+#define WM_SEND_PACKET (WM_USER + 1)//自定义的消息 发送数据包的消息
 
 // CcontrolclientDlg 对话框
 class CcontrolclientDlg : public CDialogEx
@@ -21,6 +24,8 @@ public:
 	virtual void DoDataExchange(CDataExchange* pDX);	// DDX/DDV 支持
 
 private:
+	static void threadEntryForDownloadFile(void* arg);
+	void threadDownloadFile();
 	void LoadFileCurrent();//为了删除文件设计
 	void LoadFileList();
 	CString GetPath(HTREEITEM hTree);
@@ -41,6 +46,7 @@ private:
 // 实现
 protected:
 	HICON m_hIcon;
+	CStatusDlg m_dlgStatus;//下载大文件用
 
 	// 生成的消息映射函数
 	virtual BOOL OnInitDialog();
@@ -63,4 +69,5 @@ public:
 	afx_msg void OnDownloadFile();
 	afx_msg void OnDeleteFile();
 	afx_msg void OnOpenFile();
+	afx_msg LRESULT OnSendPacket(WPARAM wParam, LPARAM lParam);
 };

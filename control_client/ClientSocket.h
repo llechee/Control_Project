@@ -194,12 +194,12 @@ public:
 			TRACE("内存不足! server buffer !\r\n");
 			return -2;
 		}
-		memset(buffer, 0, BUFFER_SIZE);
-		size_t index = 0;
+		//memset(buffer, 0, BUFFER_SIZE);
+		static size_t index = 0;
 		while (true)
 		{//
 			size_t len = recv(m_sock, buffer + index, BUFFER_SIZE - index, 0);
-			if (len <= 0)
+			if ((len <= 0) && (index <= 0))
 			{
 				//delete[]buffer;
 				return -1;
@@ -209,7 +209,7 @@ public:
 			//TODO:处理命令
 			m_packet = CPacket((BYTE*)buffer, len);
 			if (len > 0) {
-				memmove(buffer, buffer + len, BUFFER_SIZE - len);
+				memmove(buffer, buffer + len, index - len);
 				index -= len;
 				//delete[]buffer;
 				return m_packet.sCmd;
@@ -269,6 +269,7 @@ private:
 		}
 		m_buffer.resize(BUFFER_SIZE);
 		//m_sock = socket(PF_INET, SOCK_STREAM, 0);
+		memset(m_buffer.data(), 0, BUFFER_SIZE);
 	}
 	~CClientSocket() //析构函数
 	{
